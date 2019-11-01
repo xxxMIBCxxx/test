@@ -2,9 +2,6 @@
 // Eventクラス
 //*****************************************************************************
 #include "CEvent.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <memory.h>
 #include <sys/eventfd.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -165,7 +162,7 @@ CEvent::RESULT_ENUM CEvent::ResetEvent()
 //-----------------------------------------------------------------------------
 // イベント待ち
 //-----------------------------------------------------------------------------
-CEvent::RESULT_ENUM CEvent::Wait(uint32_t dwTimeout)
+CEvent::RESULT_ENUM CEvent::Wait(unsigned int Timeout)
 {
 	fd_set			fdRead;
 	int				iRet = 0;
@@ -181,14 +178,14 @@ CEvent::RESULT_ENUM CEvent::Wait(uint32_t dwTimeout)
 	// ウエイト処理
 	FD_ZERO(&fdRead);
 	FD_SET(m_efd, &fdRead);
-	if (dwTimeout == 0)
+	if (Timeout == 0)
 	{
 		iRet = select(m_efd + 1, &fdRead, NULL, NULL, NULL);
 	}
 	else
 	{
-		timeout.tv_sec = dwTimeout / 1000;
-		timeout.tv_usec = (dwTimeout % 1000) * 1000;
+		timeout.tv_sec = Timeout / 1000;
+		timeout.tv_usec = (Timeout % 1000) * 1000;
 		iRet = select(m_efd + 1, &fdRead, NULL, NULL, &timeout);
 	}
 

@@ -37,16 +37,14 @@ public:
 private:
 	std::string						m_strId;				// 識別名
 	bool							m_bInitFlag;			// 初期化フラグ
-	int								m_iError;				// エラー番号
+	int								m_ErrorNo;				// エラー番号
+
 	pthread_t						m_hThread;				// スレッドハンドル
-	pthread_mutexattr_t				m_tMutexAttr;			// ミューテックス属性
-	pthread_mutex_t					m_hMutex;				// ミューテックスハンドル
-	
-public:	
+
+public:
 	CEvent							m_cThreadStartEvent;	// スレッド開始イベント
 	CEvent							m_cThreadEndReqEvent;	// スレッド終了要求イベント
 	CEvent							m_cThreadEndEvent;		// スレッド終了イベント
-
 
 public:
 	CThread(const char* pszId = NULL);
@@ -55,9 +53,9 @@ public:
 	CThread::RESULT_ENUM Stop();
 	int GetErrorNo();
 	bool IsActive();
-	int GetEdfThreadStartEvent();
-	int GetEdfThreadEndReqEvent();
-	int GetEdfThreadEndEvent();
+	int GetThreadStartEventFd();
+	int GetThreadEndReqEventFd();
+	int GetThreadEndEventFd();
 
 	virtual void ThreadProc();
 

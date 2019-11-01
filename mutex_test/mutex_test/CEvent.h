@@ -2,6 +2,8 @@
 //*****************************************************************************
 // EventƒNƒ‰ƒX
 //*****************************************************************************
+#include <cstdio>
+
 class CEvent
 {
 public:
@@ -31,6 +33,6 @@ public:
 	int GetErrorNo();
 	RESULT_ENUM SetEvent();
 	RESULT_ENUM ResetEvent();
-	RESULT_ENUM Wait(uint32_t dwTimeout = 0);
+	RESULT_ENUM Wait(unsigned int Timeout = 0);
 };
 

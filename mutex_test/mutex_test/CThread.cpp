@@ -28,21 +28,13 @@ CThread::CThread(const char* pszId)
 
 	m_strId = "";
 	m_bInitFlag = false;
-	m_iError = 0;
+	m_ErrorNo = 0;
 	m_hThread = 0;
 	
 	// クラス名を保持
 	if (pszId != NULL)
 	{
 		m_strId = pszId;
-	}
-
-	// ミューテック属性の初期化
-	pthread_mutexattr_init(&m_tMutexAttr);
-	iRet = pthread_mutexattr_settype(&m_tMutexAttr,PTHREAD_PROCESS_PRIVATE);		// スレッド間の排他
-	if (iRet != 0)
-	{
-		return;
 	}
 
 	// スレッド開始イベント初期化
@@ -78,9 +70,6 @@ CThread::~CThread()
 {
 	// スレッドが停止していないことを考慮
 	this->Stop();
-
-	// ミューテックス属性オブジェクトを破棄
-	pthread_mutexattr_destroy(&m_tMutexAttr);
 }
 
 
@@ -111,7 +100,7 @@ CThread::RESULT_ENUM CThread::Start()
 	iRet = pthread_create(&m_hThread, NULL, ThreadLauncher, this);
 	if (iRet != 0)
 	{
-		m_iError = errno;
+		m_ErrorNo = errno;
 #ifdef _CTHREAD_DEBUG_
 		perror("CThread::Start - pthread_create");
 #endif	// #ifdef _CTHREAD_DEBUG_
@@ -216,7 +205,7 @@ CThread::RESULT_ENUM CThread::Stop()
 //-----------------------------------------------------------------------------
 int CThread::GetErrorNo()
 {
-	return m_iError;
+	return m_ErrorNo;
 }
 
 
@@ -232,7 +221,7 @@ bool CThread::IsActive()
 //-----------------------------------------------------------------------------
 // スレッド開始イベントファイルディスクリプタを取得
 //-----------------------------------------------------------------------------
-int CThread::GetEdfThreadStartEvent()
+int CThread::GetThreadStartEventFd()
 {
 	return m_cThreadStartEvent.GetEventFd();
 }
@@ -241,7 +230,7 @@ int CThread::GetEdfThreadStartEvent()
 //-----------------------------------------------------------------------------
 // スレッド終了要求イベントファイルディスクリプタを取得
 //-----------------------------------------------------------------------------
-int CThread::GetEdfThreadEndReqEvent()
+int CThread::GetThreadEndReqEventFd()
 {
 	return m_cThreadEndReqEvent.GetEventFd();
 }
@@ -250,7 +239,7 @@ int CThread::GetEdfThreadEndReqEvent()
 //-----------------------------------------------------------------------------
 // スレッド終了イベントファイルディスクリプタを取得
 //-----------------------------------------------------------------------------
-int CThread::GetEdfThreadEndEvent()
+int CThread::GetThreadEndEventFd()
 {
 	return m_cThreadEndEvent.GetEventFd();
 }
