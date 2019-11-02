@@ -95,8 +95,8 @@ CThread::RESULT_ENUM CThread::Start()
 	}
 
 	// スレッド開始
-	this->m_cThreadStartEvent.ResetEvent();
-	this->m_cThreadEndReqEvent.ResetEvent();
+	this->m_cThreadStartEvent.ClearEvent();
+	this->m_cThreadEndReqEvent.ClearEvent();
 	iRet = pthread_create(&m_hThread, NULL, ThreadLauncher, this);
 	if (iRet != 0)
 	{
@@ -111,7 +111,7 @@ CThread::RESULT_ENUM CThread::Start()
 	eEventRet = this->m_cThreadStartEvent.Wait(CTHREAD_START_TIMEOUT);
 	switch (eEventRet) {
 	case CEvent::RESULT_RECIVE_EVENT:			// スレッド開始イベントを受信
-		this->m_cThreadStartEvent.ResetEvent();
+		this->m_cThreadStartEvent.ClearEvent();
 		break;
 
 	case CEvent::RESULT_WAIT_TIMEOUT:			// タイムアウト
@@ -158,7 +158,7 @@ CThread::RESULT_ENUM CThread::Stop()
 	}
 
 	// スレッドを停止させる（スレッド終了要求イベントを送信）
-	this->m_cThreadEndEvent.ResetEvent();
+	this->m_cThreadEndEvent.ClearEvent();
 	eEventRet = this->m_cThreadEndReqEvent.SetEvent();
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
@@ -175,7 +175,7 @@ CThread::RESULT_ENUM CThread::Stop()
 		eEventRet = this->m_cThreadEndEvent.Wait(CTHREAD_END_TIMEOUT);
 		switch (eEventRet) {
 		case CEvent::RESULT_RECIVE_EVENT:			// スレッド終了イベントを受信
-			this->m_cThreadEndEvent.ResetEvent();
+			this->m_cThreadEndEvent.ClearEvent();
 			break;
 
 		case CEvent::RESULT_WAIT_TIMEOUT:			// タイムアウト
@@ -286,7 +286,7 @@ void CThread::ThreadProc()
 			break;
 
 		case CEvent::RESULT_RECIVE_EVENT:
-			m_cThreadEndReqEvent.ResetEvent();
+			m_cThreadEndReqEvent.ClearEvent();
 			bLoop = false;
 			break;
 

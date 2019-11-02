@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include "CTcpSendThread.h"
 
 
@@ -12,11 +13,10 @@
 #define EPOLL_MAX_EVENTS							( 10 )						// epoll最大イベント
 
 
-
 //-----------------------------------------------------------------------------
 // コンストラクタ
 //-----------------------------------------------------------------------------
-CTcpSendThread::CTcpSendThread()
+CTcpSendThread::CTcpSendThread(CLIENT_INFO_TABLE& tClientInfo)
 {
 	bool						bRet = false;
 	CEvent::RESULT_ENUM			eEventRet = CEvent::RESULT_SUCCESS;
@@ -25,10 +25,10 @@ CTcpSendThread::CTcpSendThread()
 	m_bInitFlag = false;
 	m_ErrorNo = 0;
 	m_epfd = -1;
-
+	m_tClientInfo = tClientInfo;
 
 	// TCP送信要求イベントの初期化
-	eEventRet = m_cSendRequestEvent.Init();
+	eEventRet = m_cSendRequestEvent.Init(EFD_SEMAPHORE);
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
 		return;
@@ -53,6 +53,15 @@ CTcpSendThread::~CTcpSendThread()
 
 	// 再度、TCP送信要求リストをクリアする
 	SendRequestList_Clear();
+}
+
+
+//-----------------------------------------------------------------------------
+// エラー番号を取得
+//-----------------------------------------------------------------------------
+int CTcpSendThread::GetErrorNo()
+{
+	return m_ErrorNo;
 }
 
 
@@ -274,7 +283,7 @@ void CTcpSendThread::SendRequestList_Clear()
 		it++;
 	}
 
-	// シリアル送信要求リストをクリア
+	// TCP送信要求リストをクリア
 	m_SendRequestList.clear();
 
 	m_cSendRequestListMutex.Unlock();
@@ -321,7 +330,7 @@ CTcpSendThread::RESULT_ENUM CTcpSendThread::SetSendRequestData(SEND_REQUEST_TABL
 	m_cSendRequestListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
-	// TCP通信送信スレッドにシリアル送信要求イベントを送信する
+	// TCP通信送信スレッドにTCP送信要求イベントを送信する
 	m_cSendRequestEvent.SetEvent();
 
 	return RESULT_SUCCESS;
@@ -367,8 +376,8 @@ CTcpSendThread::RESULT_ENUM CTcpSendThread::GetSendRequestData(SEND_REQUEST_TABL
 	m_cSendRequestListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
-	// TCP通信送信スレッドにシリアル送信要求イベントを送信する
-	m_cSendRequestEvent.SetEvent();
+	// TCP受信応答データを取得したので、TCP送信要求イベントをクリアする
+	m_cSendRequestEvent.ClearEvent();
 
 	return RESULT_SUCCESS;
 }

@@ -5,17 +5,19 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include "CTcpRecvThread.h"
 
 
 #define _CTCP_RECV_THREAD_DEBUG_
 #define EPOLL_MAX_EVENTS							( 10 )						// epoll最大イベント
-
+#define STX											( 0x02 )					// STX
+#define ETX											( 0x03 )					// ETX
 
 //-----------------------------------------------------------------------------
 // コンストラクタ
 //-----------------------------------------------------------------------------
-CTcpRecvThread::CTcpRecvThread()
+CTcpRecvThread::CTcpRecvThread(CLIENT_INFO_TABLE& tClientInfo)
 {
 	bool						bRet = false;
 	CEvent::RESULT_ENUM			eEventRet = CEvent::RESULT_SUCCESS;
@@ -24,9 +26,14 @@ CTcpRecvThread::CTcpRecvThread()
 	m_bInitFlag = false;
 	m_ErrorNo = 0;
 	m_epfd = -1;
-
+	m_tClientInfo = tClientInfo;
+	m_eAnalyzeKind = ANALYZE_KIND_STX;
+	m_CommandPos = 0;
+	memset(m_szRecvBuff, 0x00, sizeof(m_szRecvBuff));
+	memset(m_szCommandBuff, 0x00, sizeof(m_szCommandBuff));
 
 	// TCP受信応答イベントの初期化
+//	eEventRet = m_cRecvResponseEvent.Init(EFD_SEMAPHORE);
 	eEventRet = m_cRecvResponseEvent.Init();
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
@@ -52,6 +59,15 @@ CTcpRecvThread::~CTcpRecvThread()
 
 	// 再度、TCP受信応答リストをクリアする
 	RecvResponseList_Clear();
+}
+
+
+//-----------------------------------------------------------------------------
+// エラー番号を取得
+//-----------------------------------------------------------------------------
+int CTcpRecvThread::GetErrorNo()
+{
+	return m_ErrorNo;
 }
 
 
@@ -169,11 +185,11 @@ void CTcpRecvThread::ThreadProc()
 		return;
 	}
 
-	// TCP受信応答イベントを登録
+	// TCP受信用のソケットを登録
 	memset(&tEvent, 0x00, sizeof(tEvent));
 	tEvent.events = EPOLLIN;
-	tEvent.data.fd = this->m_cRecvResponseEvent.GetEventFd();
-	iRet = epoll_ctl(m_epfd, EPOLL_CTL_ADD, this->m_cRecvResponseEvent.GetEventFd(), &tEvent);
+	tEvent.data.fd = this->m_tClientInfo.Socket;
+	iRet = epoll_ctl(m_epfd, EPOLL_CTL_ADD, this->m_tClientInfo.Socket, &tEvent);
 	if (iRet == -1)
 	{
 		m_ErrorNo = errno;
@@ -214,10 +230,11 @@ void CTcpRecvThread::ThreadProc()
 				bLoop = false;
 				break;
 			}
-			// TCP受信応答イベント受信
-			else if (tEvents[i].data.fd == this->m_cRecvResponseEvent.GetEventFd())
+			// TCP受信用のソケット
+			else if (this->m_tClientInfo.Socket)
 			{
-				// ★TCP受信処理
+				// TCP受信処理
+				TcpRecvProc();
 			}
 		}
 	}
@@ -320,6 +337,9 @@ CTcpRecvThread::RESULT_ENUM CTcpRecvThread::GetRecvResponseData(RECV_RESPONCE_TA
 	m_cRecvResponseListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
+	// TCP受信応答データを取得したので、TCP受信応答イベントをクリアする
+	m_cRecvResponseEvent.ClearEvent();
+
 	return RESULT_SUCCESS;
 }
 
@@ -368,6 +388,138 @@ CTcpRecvThread::RESULT_ENUM CTcpRecvThread::SetRecvResponseData(RECV_RESPONCE_TA
 
 	return RESULT_SUCCESS;
 }
+
+
+//-----------------------------------------------------------------------------
+// TCP受信処理
+//-----------------------------------------------------------------------------
+CTcpRecvThread::RESULT_ENUM CTcpRecvThread::TcpRecvProc()
+{
+	ssize_t					read_count = 0;
+	// TCP受信処理
+	memset(m_szRecvBuff, 0x00, sizeof(m_szRecvBuff));
+	read_count = read(m_tClientInfo.Socket, m_szRecvBuff, CTCP_RECV_THREAD_RECV_BUFF_SIZE);
+	if (read_count < 0)
+	{
+		m_ErrorNo = errno;
+#ifdef _CTCP_RECV_THREAD_DEBUG_
+		perror("CTcpRecvThread::TcpRecvProc - read");
+#endif	// #ifdef _CTCP_RECV_THREAD_DEBUG_
+		return RESULT_ERROR_RECV;
+	}
+	else if (read_count == 0)
+	{
+		printf("read_count = 0\n");
+
+	}
+	else
+	{
+		// TCP受信データ解析
+		TcpRecvDataAnalyze(m_szRecvBuff, read_count);
+	}
+
+	return RESULT_SUCCESS;
+}
+
+
+//-----------------------------------------------------------------------------
+// TCP受信データ解析
+//-----------------------------------------------------------------------------
+CTcpRecvThread::RESULT_ENUM CTcpRecvThread::TcpRecvDataAnalyze(char* pRecvData, ssize_t RecvDataNum)
+{
+	RESULT_ENUM					eRet = RESULT_SUCCESS;
+
+	// パラメータチェック
+	if (pRecvData == NULL)
+	{
+		return RESULT_ERROR_PARAM;
+	}
+
+	// 受信したデータを1Byteずつ調べる
+	for (ssize_t i = 0; i < RecvDataNum; i++)
+	{
+		char		ch = pRecvData[i];
+
+
+		// 解析種別によって処理を変更
+		if (m_eAnalyzeKind == ANALYZE_KIND_STX)
+		{
+			// STX
+			if (ch == STX)
+			{
+				m_CommandPos = 0;
+				memset(m_szCommandBuff, 0x00, sizeof(m_szCommandBuff));
+				m_szCommandBuff[m_CommandPos++] = ch;
+				m_eAnalyzeKind = ANALYZE_KIND_ETX;
+			}
+			else
+			{
+				// 受信データを破棄
+			}
+		}
+		else
+		{
+			// STX
+			if (ch == STX)
+			{
+				m_CommandPos = 0;
+				memset(m_szCommandBuff, 0x00, sizeof(m_szCommandBuff));
+				m_szCommandBuff[m_CommandPos++] = ch;
+				m_eAnalyzeKind = ANALYZE_KIND_ETX;
+			}
+			else if (ch == ETX)
+			{
+				// 解析完了
+				m_szCommandBuff[m_CommandPos++] = ch;
+				m_eAnalyzeKind = ANALYZE_KIND_STX;
+
+				// TCP受信応答（※受信データをClientResponseThread側へ渡す）
+				RECV_RESPONCE_TABLE		tRecvResponce;
+				memset(&tRecvResponce, 0x00, sizeof(tRecvResponce));
+				tRecvResponce.pReceverClass = this;
+				tRecvResponce.RecvDataSize = strlen(m_szCommandBuff) + 1;			// Debug用
+//				tRecvResponce.RecvDataSize = strlen(m_szCommandBuff);
+				tRecvResponce.pRecvdData = (char*)malloc(tRecvResponce.RecvDataSize);
+				if (tRecvResponce.pRecvdData == NULL)
+				{
+#ifdef _CTCP_RECV_THREAD_DEBUG_
+					printf("CTcpRecvThread::TcpRecvDataAnalyze - malloc error.\n");
+#endif	// #ifdef _CTCP_RECV_THREAD_DEBUG_
+					return RESULT_ERROR_SYSTEM;
+				}
+				memcpy(tRecvResponce.pRecvdData, m_szCommandBuff, tRecvResponce.RecvDataSize);
+				eRet = this->SetRecvResponseData(tRecvResponce);
+				if (eRet != RESULT_SUCCESS)
+				{
+#ifdef _CTCP_RECV_THREAD_DEBUG_
+					printf("CTcpRecvThread::TcpRecvDataAnalyze - SetRecvResponseData error.\n");
+#endif	// #ifdef _CTCP_RECV_THREAD_DEBUG_
+					return eRet;
+				}
+			}
+			else
+			{
+				// 受信データを格納
+				m_szCommandBuff[m_CommandPos++] = ch;
+				if (m_CommandPos >= CTCP_RECV_THREAD_COMMAND_BUFF_SIZE)
+				{
+#ifdef _CTCP_RECV_THREAD_DEBUG_
+					printf("CTcpRecvThread::TcpRecvDataAnalyze - Command Buffer Over.\n");
+#endif	// #ifdef _CTCP_RECV_THREAD_DEBUG_
+					return RESULT_ERROR_COMMAND_BUFF_OVER;
+				}
+			}
+		}
+	}
+
+	return RESULT_SUCCESS;
+}
+
+
+
+
+
+
 
 
 

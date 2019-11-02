@@ -1,20 +1,20 @@
 //*****************************************************************************
-// Eventクラス
+// EventExクラス
 //*****************************************************************************
-#include "CEvent.h"
+#include "CEventEx.h"
 #include <sys/eventfd.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 
 
-#define _CEVENT_DEBUG_
+#define _CEVENT_EX_DEBUG_
 
 
 //-----------------------------------------------------------------------------
 // コンストラクタ
 //-----------------------------------------------------------------------------
-CEvent::CEvent()
+CEventEx::CEventEx()
 {
 	m_ErrorNo = 0;
 	m_efd = -1;
@@ -24,7 +24,7 @@ CEvent::CEvent()
 //-----------------------------------------------------------------------------
 // デストラクタ
 //-----------------------------------------------------------------------------
-CEvent::~CEvent()
+CEventEx::~CEventEx()
 {
 	// イベントファイルディスクリプタを解放
 	if (m_efd == -1)
@@ -38,16 +38,16 @@ CEvent::~CEvent()
 //-----------------------------------------------------------------------------
 // 初期処理
 //-----------------------------------------------------------------------------
-CEvent::RESULT_ENUM CEvent::Init(unsigned int initval)
+CEventEx::RESULT_ENUM CEventEx::Init()
 {
 	// イベントファイルディスクリプタを生成
-	m_efd = eventfd(initval, 0);
+	m_efd = eventfd(EFD_SEMAPHORE, 0);
 	if (m_efd == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CEVENT_DEBUG_
-		perror("CEvent::Init - eventfd");
-#endif	// #ifdef _CEVENT_DEBUG_
+#ifdef _CEVENT_EX_DEBUG_
+		perror("CEventEx::Init - eventfd");
+#endif	// #ifdef _CEVENT_EX_DEBUG_
 		return RESULT_ERROR_EVENT_FD;
 	}
 
@@ -58,7 +58,7 @@ CEvent::RESULT_ENUM CEvent::Init(unsigned int initval)
 //-----------------------------------------------------------------------------
 // イベントファイルディスクリプタを取得
 //-----------------------------------------------------------------------------
-int CEvent::GetEventFd()
+int CEventEx::GetEventFd()
 {
 	return m_efd;
 }
@@ -67,16 +67,16 @@ int CEvent::GetEventFd()
 //-----------------------------------------------------------------------------
 // エラー番号を取得
 //-----------------------------------------------------------------------------
-int CEvent::GetErrorNo()
+int CEventEx::GetErrorNo()
 {
 	return m_ErrorNo;
 }
 
 
 //-----------------------------------------------------------------------------
-// イベント設定
+// イベント設定（インクリメント）
 //-----------------------------------------------------------------------------
-CEvent::RESULT_ENUM CEvent::SetEvent()
+CEventEx::RESULT_ENUM CEventEx::SetEvent()
 {
 	uint64_t				event = 1;
 	int						iRet = 0;
@@ -88,14 +88,14 @@ CEvent::RESULT_ENUM CEvent::SetEvent()
 		return RESULT_ERROR_EVENT_FD;
 	}
 
-	// イベント設定
+	// イベント設定（インクリメント）
 	iRet = write(m_efd, &event, sizeof(event));
 	if (iRet != sizeof(event))
 	{
 		m_ErrorNo = errno;
-#ifdef _CEVENT_DEBUG_
-		perror("CEvent::SetEvent - write");
-#endif	// #ifdef _CEVENT_DEBUG_
+#ifdef _CEVENT_EX_DEBUG_
+		perror("CEventEx::SetEvent - write");
+#endif	// #ifdef _CEVENT_EX_DEBUG_
 		return RESULT_ERROR_EVENT_SET;
 	}
 
@@ -104,9 +104,9 @@ CEvent::RESULT_ENUM CEvent::SetEvent()
 
 
 //-----------------------------------------------------------------------------
-// イベントリセット
+// イベントクリア（デクリメント）
 //-----------------------------------------------------------------------------
-CEvent::RESULT_ENUM CEvent::ClearEvent()
+CEventEx::RESULT_ENUM CEventEx::ClearEvent()
 {
 	uint64_t				event = 0;
 	int						iRet = 0;
@@ -131,9 +131,9 @@ CEvent::RESULT_ENUM CEvent::ClearEvent()
 	if (iRet < 0)
 	{
 		m_ErrorNo = errno;
-#ifdef _CEVENT_DEBUG_
-		perror("CEvent::ClearEvent - select");
-#endif	// #ifdef _CEVENT_DEBUG_
+#ifdef _CEVENT_EX_DEBUG_
+		perror("CEventEx::ClearEvent - select");
+#endif	// #ifdef _CEVENT_EX_DEBUG_
 		return RESULT_ERROR_SYSTEM;
 	}
 	if (iRet == 0)
@@ -143,14 +143,14 @@ CEvent::RESULT_ENUM CEvent::ClearEvent()
 	}
 	else
 	{
-		// イベントリセット
+		// イベントクリア（デクリメント）
 		iRet = read(m_efd, &event, sizeof(event));
 		if (iRet < 0)
 		{
 			m_ErrorNo = errno;
-#ifdef _CEVENT_DEBUG_
-			perror("CEvent::ClearEvent - read");
-#endif	// #ifdef _CEVENT_DEBUG_
+#ifdef _CEVENT_EX_DEBUG_
+			perror("CEventEx::ClearEvent - read");
+#endif	// #ifdef _CEVENT_EX_DEBUG_
 			return RESULT_ERROR_EVENT_CLEAR;
 		}
 	}
@@ -162,7 +162,7 @@ CEvent::RESULT_ENUM CEvent::ClearEvent()
 //-----------------------------------------------------------------------------
 // イベント待ち
 //-----------------------------------------------------------------------------
-CEvent::RESULT_ENUM CEvent::Wait(unsigned int Timeout)
+CEventEx::RESULT_ENUM CEventEx::Wait(unsigned int Timeout)
 {
 	fd_set			fdRead;
 	int				iRet = 0;
@@ -192,9 +192,9 @@ CEvent::RESULT_ENUM CEvent::Wait(unsigned int Timeout)
 	if (iRet < 0)					// エラー
 	{
 		m_ErrorNo = errno;
-#ifdef _CEVENT_DEBUG_
-		perror("CEvent::Wait - select");
-#endif	// #ifdef _CEVENT_DEBUG_
+#ifdef _CEVENT_EX_DEBUG_
+		perror("CEventEx::Wait - select");
+#endif	// #ifdef _CEVENT_EX_DEBUG_
 		return RESULT_ERROR_EVENT_WAIT;
 	}
 	else if (iRet == 0)				// タイムアウト

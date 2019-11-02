@@ -6,7 +6,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "CThread.h"
-
+#include "CTcpSendThread.h"
+#include "CTcpRecvThread.h"
 
 
 #define	IP_ADDR_BUFF_SIZE					( 32 )
@@ -28,7 +29,6 @@ public:
 		RESULT_ERROR_SYSTEM = 0xE9999999,										// システムエラー
 	} RESULT_ENUM;
 
-
 	// クライアント情報構造体
 	typedef struct
 	{
@@ -49,6 +49,8 @@ public:
 	int										m_epfd;								// epollファイルディスクリプタ（クライアント応答スレッドで使用）
 	char									m_szRecvBuf[RECV_BUFF_SIZE + 1];	// 受信バッファ
 
+	CTcpSendThread*							m_pcTcpSendThread;					// TCP送信スレッド
+	CTcpRecvThread*							m_pcTcpRecvThread;					// TCP受信スレッド
 
 	bool									m_bThreadEndFlag;					// スレッド終了フラグ
 	CEvent									*m_pcClientResponseThread_EndEvent;	// クライアント応答スレッド終了処理イベント

@@ -2,6 +2,9 @@
 //*****************************************************************************
 // TCP通信送信スレッドクラス
 //*****************************************************************************
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include "CThread.h"
 #include "CEvent.h"
 #include "CMutex.h"
@@ -24,6 +27,13 @@ public:
 		RESULT_ERROR_SYSTEM = 0xE9999999,									// システムエラー
 	} RESULT_ENUM;
 
+	// クライアント情報構造体
+	typedef struct
+	{
+		int									Socket;							// ソケット
+		struct sockaddr_in					tAddr;							// インターネットソケットアドレス構造体
+
+	} CLIENT_INFO_TABLE;
 
 	// TCP送信要求構造体 
 	typedef struct
@@ -43,10 +53,12 @@ private:
 	bool									m_bInitFlag;					// 初期化完了フラグ
 	int										m_ErrorNo;						// エラー番号
 	int										m_epfd;							// epollファイルディスクリプタ（クライアント接続監視スレッドで使用）
+	CLIENT_INFO_TABLE						m_tClientInfo;					// クライアント情報
 
 public:
-	CTcpSendThread();
+	CTcpSendThread(CLIENT_INFO_TABLE& tClientInfo);
 	~CTcpSendThread();
+	int GetErrorNo();
 	RESULT_ENUM Start();
 	RESULT_ENUM Stop();
 	RESULT_ENUM SetSendRequestData(SEND_REQUEST_TABLE& tSendReauest);

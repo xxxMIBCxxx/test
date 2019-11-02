@@ -48,6 +48,9 @@ CConnectMonitoringThread::~CConnectMonitoringThread()
 {
 	// クライアント接続監視スレッド停止漏れを考慮
 	this->Stop();
+
+	// 再度、リストに登録されている、クライアント応答スレッドを全て解放する
+	ClientResponseThreadList_Clear();
 }
 
 
@@ -114,9 +117,6 @@ CConnectMonitoringThread::RESULT_ENUM CConnectMonitoringThread::Stop()
 		return RESULT_SUCCESS;
 	}
 
-	// リストに登録されている、クライアント応答スレッドを全て解放する
-	ClientResponseThreadList_Clear();
-
 	// クライアント接続監視スレッド停止
 	CThread::Stop();
 
@@ -127,6 +127,9 @@ CConnectMonitoringThread::RESULT_ENUM CConnectMonitoringThread::Stop()
 		memset(&m_tServerInfo, 0x00, sizeof(m_tServerInfo));
 		m_tServerInfo.Socket = -1;
 	}
+
+	// リストに登録されている、クライアント応答スレッドを全て解放する
+	ClientResponseThreadList_Clear();
 
 	return RESULT_SUCCESS;
 }
@@ -292,6 +295,9 @@ void CConnectMonitoringThread::ThreadProc()
 				CClientResponseThread::CLIENT_INFO_TABLE		tClientInfo;
 				socklen_t len = sizeof(tClientInfo.tAddr);
 				tClientInfo.Socket = accept(this->m_tServerInfo.Socket, (struct sockaddr*) & tClientInfo.tAddr, &len);
+				printf("accepted connection from %s, port=%d\n", inet_ntoa(tClientInfo.tAddr.sin_addr), ntohs(tClientInfo.tAddr.sin_port));
+
+#if 1
 				CClientResponseThread* pcClientResponseThread = (CClientResponseThread*)new CClientResponseThread(tClientInfo, &m_cClientResponseThread_EndEvent);
 				if (pcClientResponseThread == NULL)
 				{
@@ -311,7 +317,7 @@ void CConnectMonitoringThread::ThreadProc()
 
 				// リストに登録
 				m_ClientResponseThreadList.push_back(pcClientResponseThread);
-				printf("accepted connection from %s, port=%d\n", inet_ntoa(tClientInfo.tAddr.sin_addr), ntohs(tClientInfo.tAddr.sin_port));
+#endif
 				continue;
 			}
 
@@ -357,7 +363,10 @@ void CConnectMonitoringThread::ClientResponseThreadList_Clear()
 	while (it != m_ClientResponseThreadList.end())
 	{
 		CClientResponseThread* p = *it;
-		delete p;
+		if (p != NULL)
+		{
+			delete p;
+		}
 		it++;
 	}
 	m_ClientResponseThreadList.clear();

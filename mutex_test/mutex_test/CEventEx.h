@@ -1,10 +1,10 @@
 #pragma once
 //*****************************************************************************
-// Eventクラス
+// EventExクラス
 //*****************************************************************************
 #include <cstdio>
 
-class CEvent
+class CEventEx
 {
 public:
 	typedef enum
@@ -26,9 +26,9 @@ private:
 	int								m_ErrorNo;			// エラー番号
 
 public:
-	CEvent();
-	~CEvent();
-	RESULT_ENUM Init(unsigned int initval = 0);
+	CEventEx();
+	~CEventEx();
+	RESULT_ENUM Init();
 	int GetEventFd();
 	int GetErrorNo();
 	RESULT_ENUM SetEvent();

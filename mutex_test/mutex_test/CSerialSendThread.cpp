@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include "CSerialSendThread.h"
 
 
@@ -27,7 +28,7 @@ CSerialSendThread::CSerialSendThread()
 
 
 	// シリアル送信要求イベントの初期化
-	eEventRet = m_cSendRequestEvent.Init();
+	eEventRet = m_cSendRequestEvent.Init(EFD_SEMAPHORE);
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
 		return;
@@ -357,7 +358,7 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUES
 	// シリアル送信要求リストに登録データある場合
 	if (m_SendRequestList.empty() != true)
 	{
-		// シリアル受信応答リストの先頭データを取り出す（※リストの先頭データは削除）
+		// シリアル送信要求リストの先頭データを取り出す（※リストの先頭データは削除）
 		std::list<SEND_REQUEST_TABLE>::iterator		it = m_SendRequestList.begin();
 		tSendReauest = *it;
 		m_SendRequestList.pop_front();
@@ -366,8 +367,8 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUES
 	m_cSendRequestListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
-	// シリアル通信送信スレッドにシリアル送信要求イベントを送信する
-	m_cSendRequestEvent.SetEvent();
+	// シリアル通信送信データを取得したので、シリアル送信要求イベントをクリアする
+	m_cSendRequestEvent.ClearEvent();
 
 	return RESULT_SUCCESS;
 }

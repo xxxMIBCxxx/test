@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include "CSerialRecvThread.h"
 
 
@@ -27,7 +28,7 @@ CSerialRecvThread::CSerialRecvThread()
 
 
 	// シリアル受信応答イベントの初期化
-	eEventRet = m_cRecvResponseEvent.Init();
+	eEventRet = m_cRecvResponseEvent.Init(EFD_SEMAPHORE);
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
 		return;
