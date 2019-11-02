@@ -46,7 +46,7 @@ CEvent::RESULT_ENUM CEvent::Init()
 	{
 		m_ErrorNo = errno;
 #ifdef _CEVENT_DEBUG_
-		perror("CEvent - eventfd");
+		perror("CEvent::Init - eventfd");
 #endif	// #ifdef _CEVENT_DEBUG_
 		return RESULT_ERROR_EVENT_FD;
 	}
@@ -94,7 +94,7 @@ CEvent::RESULT_ENUM CEvent::SetEvent()
 	{
 		m_ErrorNo = errno;
 #ifdef _CEVENT_DEBUG_
-		perror("CEvent - write");
+		perror("CEvent::SetEvent - write");
 #endif	// #ifdef _CEVENT_DEBUG_
 		return RESULT_ERROR_EVENT_SET;
 	}
@@ -132,7 +132,7 @@ CEvent::RESULT_ENUM CEvent::ResetEvent()
 	{
 		m_ErrorNo = errno;
 #ifdef _CEVENT_DEBUG_
-		perror("CEvent - select");
+		perror("CEvent::ResetEvent - select");
 #endif	// #ifdef _CEVENT_DEBUG_
 		return RESULT_ERROR_SYSTEM;
 	}
@@ -149,7 +149,7 @@ CEvent::RESULT_ENUM CEvent::ResetEvent()
 		{
 			m_ErrorNo = errno;
 #ifdef _CEVENT_DEBUG_
-			perror("CEvent - read");
+			perror("CEvent::ResetEvent - read");
 #endif	// #ifdef _CEVENT_DEBUG_
 			return RESULT_ERROR_EVENT_RESET;
 		}
@@ -192,6 +192,9 @@ CEvent::RESULT_ENUM CEvent::Wait(unsigned int Timeout)
 	if (iRet < 0)					// エラー
 	{
 		m_ErrorNo = errno;
+#ifdef _CEVENT_DEBUG_
+		perror("CEvent::Wait - select");
+#endif	// #ifdef _CEVENT_DEBUG_
 		return RESULT_ERROR_EVENT_WAIT;
 	}
 	else if (iRet == 0)				// タイムアウト

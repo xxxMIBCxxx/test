@@ -6,8 +6,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "CThread.h"
-//#include "CClientResponseThread.h"
-//#include "list"
+#include "CClientResponseThread.h"
+#include "list"
 
 
 
@@ -26,6 +26,7 @@ public:
 		RESULT_ERROR_CREATE_SOCKET = 0xE1000002,								// ソケット生成に失敗
 		RESULT_ERROR_BIND = 0xE1000003,											// ソケットの名前付けに失敗
 		RESULT_ERROR_LISTEN = 0xE1000004,										// 接続待ちに失敗
+
 		RESULT_ERROR_SYSTEM = 0xE9999999,										// システムエラー
 	} RESULT_ENUM;
 
@@ -38,12 +39,12 @@ public:
 	} SERVER_INFO_TABLE;
 
 
-	// クライアント情報構造体
-	typedef struct
-	{
-		int									Socket;								// ソケット
-		struct sockaddr_in					tAddr;								// インターネットソケットアドレス構造体
-	} CLIENT_INFO_TABLE;
+	//// クライアント情報構造体
+	//typedef struct
+	//{
+	//	int									Socket;								// ソケット
+	//	struct sockaddr_in					tAddr;								// インターネットソケットアドレス構造体
+	//} CLIENT_INFO_TABLE;
 
 
 private:
@@ -56,7 +57,7 @@ private:
 	int										m_epfd;								// epollファイルディスクリプタ（クライアント接続監視スレッドで使用）
 
 	CEvent									m_cClientResponseThread_EndEvent;	// クライアント応答スレッド終了処理イベント
-//	std::list< CClientResponseThread*>		m_ClientResponseThreadList;
+	std::list< CClientResponseThread*>		m_ClientResponseThreadList;
 
 public:
 	CConnectMonitoringThread();
@@ -68,8 +69,8 @@ private:
 	RESULT_ENUM ServerConnectInit(SERVER_INFO_TABLE& tServerInfo);
 	void ThreadProc();
 	static void ThreadProcCleanup(void* pArg);
-//	void ClientResponseThreadList_Clear();
-//	void ClientResponseThreadList_CheckEndThread();
+	void ClientResponseThreadList_Clear();
+	void ClientResponseThreadList_CheckEndThread();
 };
 
 

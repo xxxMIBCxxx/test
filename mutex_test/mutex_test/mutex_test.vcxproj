@@ -75,12 +75,18 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\%40Temp\%40test2\mutex_test\mutex_test\CClientResponseThread.cpp" />
+    <ClCompile Include="..\..\..\..\%40Temp\%40test2\mutex_test\mutex_test\CConnectMonitoringThread.cpp" />
+    <ClCompile Include="..\..\..\..\%40Temp\%40test2\mutex_test\mutex_test\CSerialSendThread.cpp" />
     <ClCompile Include="CEvent.cpp" />
     <ClCompile Include="CMutex.cpp" />
     <ClCompile Include="CThread.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\%40Temp\%40test2\mutex_test\mutex_test\CClientResponseThread.h" />
+    <ClInclude Include="..\..\..\..\%40Temp\%40test2\mutex_test\mutex_test\CConnectMonitoringThread.h" />
+    <ClInclude Include="..\..\..\..\%40Temp\%40test2\mutex_test\mutex_test\CSerialSendThread.h" />
     <ClInclude Include="CEvent.h" />
     <ClInclude Include="CMutex.h" />
     <ClInclude Include="CThread.h" />

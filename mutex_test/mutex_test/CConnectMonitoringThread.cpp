@@ -114,8 +114,8 @@ CConnectMonitoringThread::RESULT_ENUM CConnectMonitoringThread::Stop()
 		return RESULT_SUCCESS;
 	}
 
-//	// リストに登録されている、クライアント応答スレッドを全て解放する
-//	ClientResponseThreadList_Clear();
+	// リストに登録されている、クライアント応答スレッドを全て解放する
+	ClientResponseThreadList_Clear();
 
 	// クライアント接続監視スレッド停止
 	CThread::Stop();
@@ -228,7 +228,7 @@ void CConnectMonitoringThread::ThreadProc()
 		return;
 	}
 
-	// クライアント応答スレッド終了イベントを登録
+	// クライアント応答スレッド終了要求イベントを登録
 	memset(&tEvent, 0x00, sizeof(tEvent));
 	tEvent.events = EPOLLIN;
 	tEvent.data.fd = this->m_cClientResponseThread_EndEvent.GetEventFd();
@@ -289,45 +289,38 @@ void CConnectMonitoringThread::ThreadProc()
 			// 接続要求
 			if (tEvents[i].data.fd == this->m_tServerInfo.Socket)
 			{
-//				CClientResponseThread::CLIENT_INFO_TABLE		tClentInfo;
-//				socklen_t len = sizeof(tClentInfo.tAddr);
-//				tClentInfo.Socket = accept(this->m_tServerInfo.Socket, (struct sockaddr*) & tClentInfo.tAddr, &len);
-//
-//				CClientResponseThread* pcClientResponseThread = (CClientResponseThread*)new CClientResponseThread(tClentInfo, &m_cClientResponseThread_EndEvent);
-//				if (pcClientResponseThread == NULL)
-//				{
-//#ifdef _CONNECT_MONITORING_THREAD_DEBUG_
-//					printf("CConnectMonitoringThread::ThreadProc - Crete CClientResponseThread error.\n");
-//#endif	// #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
-//					continue;
-//				}
-//				CClientResponseThread::RESULT_ENUM eRet = pcClientResponseThread->Start();
-//				if (eRet != CClientResponseThread::RESULT_SUCCESS)
-//				{
-//#ifdef _CONNECT_MONITORING_THREAD_DEBUG_
-//					printf("CConnectMonitoringThread::ThreadProc - Start CClientResponseThread error.\n");
-//#endif	// #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
-//					continue;
-//				}
-
-//				// リストに登録
-//				m_ClientResponseThreadList.push_back(pcClientResponseThread);
-//				printf("accepted connection from %s, port=%d\n", inet_ntoa(tClentInfo.tAddr.sin_addr), ntohs(tClentInfo.tAddr.sin_port));
-//				continue;
-
-				CLIENT_INFO_TABLE tClientInfo;
+				CClientResponseThread::CLIENT_INFO_TABLE		tClientInfo;
 				socklen_t len = sizeof(tClientInfo.tAddr);
-				tClientInfo.Socket = accept(this->m_tServerInfo.Socket, (struct sockaddr*) &tClientInfo.tAddr, &len);
+				tClientInfo.Socket = accept(this->m_tServerInfo.Socket, (struct sockaddr*) & tClientInfo.tAddr, &len);
+				CClientResponseThread* pcClientResponseThread = (CClientResponseThread*)new CClientResponseThread(tClientInfo, &m_cClientResponseThread_EndEvent);
+				if (pcClientResponseThread == NULL)
+				{
+#ifdef _CONNECT_MONITORING_THREAD_DEBUG_
+					printf("CConnectMonitoringThread::ThreadProc - Create CClientResponseThread error.\n");
+#endif	// #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
+					continue;
+				}
+				CClientResponseThread::RESULT_ENUM eRet = pcClientResponseThread->Start();
+				if (eRet != CClientResponseThread::RESULT_SUCCESS)
+				{
+#ifdef _CONNECT_MONITORING_THREAD_DEBUG_
+					printf("CConnectMonitoringThread::ThreadProc - Start CClientResponseThread error.\n");
+#endif	// #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
+					continue;
+				}
+
+				// リストに登録
+				m_ClientResponseThreadList.push_back(pcClientResponseThread);
 				printf("accepted connection from %s, port=%d\n", inet_ntoa(tClientInfo.tAddr.sin_addr), ntohs(tClientInfo.tAddr.sin_port));
+				continue;
 			}
-#if 0
-//			// クライアント応答スレッド終了イベント
-//			if (tEvents[i].data.fd == this->GetEdfThreadEndReqEvent())
-//			{
-//				// リストに登録されている、クライアント応答スレッドからスレッド終了フラグが立っているスレッドを全て終了させる
-//				ClientResponseThreadList_CheckEndThread();
-//			}
-#endif
+
+			// クライアント応答スレッド終了要求イベント
+			if (tEvents[i].data.fd == this->m_cClientResponseThread_EndEvent.GetEventFd())
+			{
+				// リストに登録されている、クライアント応答スレッドからスレッド終了フラグが立っているスレッドを全て終了させる
+				ClientResponseThreadList_CheckEndThread();
+			}
 		}
 	}
 
@@ -355,7 +348,6 @@ void CConnectMonitoringThread::ThreadProcCleanup(void* pArg)
 }
 
 
-#if 0
 //-----------------------------------------------------------------------------
 // リストに登録されている、クライアント応答スレッドを全て解放する
 //-----------------------------------------------------------------------------
@@ -394,4 +386,3 @@ void CConnectMonitoringThread::ClientResponseThreadList_CheckEndThread()
 		it++;
 	}
 }
-#endif
