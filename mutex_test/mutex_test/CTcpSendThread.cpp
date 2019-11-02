@@ -1,21 +1,22 @@
 //*****************************************************************************
-// シリアル通信送信スレッド
+// TCP通信送信スレッドクラス
 //*****************************************************************************
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
-#include "CSerialSendThread.h"
+#include "CTcpSendThread.h"
 
 
-#define _CSERIAL_SEND_THREAD_DEBUG_
+#define _CTCP_SEND_THREAD_DEBUG_
 #define EPOLL_MAX_EVENTS							( 10 )						// epoll最大イベント
+
 
 
 //-----------------------------------------------------------------------------
 // コンストラクタ
 //-----------------------------------------------------------------------------
-CSerialSendThread::CSerialSendThread()
+CTcpSendThread::CTcpSendThread()
 {
 	bool						bRet = false;
 	CEvent::RESULT_ENUM			eEventRet = CEvent::RESULT_SUCCESS;
@@ -26,14 +27,14 @@ CSerialSendThread::CSerialSendThread()
 	m_epfd = -1;
 
 
-	// シリアル送信要求イベントの初期化
+	// TCP送信要求イベントの初期化
 	eEventRet = m_cSendRequestEvent.Init();
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
 		return;
 	}
 
-	// シリアル送信要求リストのクリア
+	// TCP送信要求リストのクリア
 	m_SendRequestList.clear();
 
 
@@ -45,20 +46,20 @@ CSerialSendThread::CSerialSendThread()
 //-----------------------------------------------------------------------------
 // デストラクタ
 //-----------------------------------------------------------------------------
-CSerialSendThread::~CSerialSendThread()
+CTcpSendThread::~CTcpSendThread()
 {
-	// シリアル通信送信スレッド停止し忘れ考慮
+	// TCP通信送信スレッド停止し忘れ考慮
 	this->Stop();
 
-	// 再度、シリアル送信要求リストをクリアする
+	// 再度、TCP送信要求リストをクリアする
 	SendRequestList_Clear();
 }
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド開始
+// TCP通信送信スレッド開始
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
+CTcpSendThread::RESULT_ENUM CTcpSendThread::Start()
 {
 	bool						bRet = false;
 	RESULT_ENUM					eRet = RESULT_SUCCESS;
@@ -68,9 +69,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::Start - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		printf("CTcpSendThread::Start - Not Init Proc.\n");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -78,18 +79,18 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
 	bRet = this->IsActive();
 	if (bRet == true)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::Start - Thread Active.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		printf("CTcpSendThread::Start - Thread Active.\n");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return RESULT_ERROR_ALREADY_STARTED;
 	}
 
-	// シリアル通信送信スレッド開始
+	// TCP通信送信スレッド開始
 	eThreadRet = CThread::Start();
 	if (eThreadRet != CThread::RESULT_SUCCESS)
 	{
 		m_ErrorNo = CThread::GetErrorNo();
-		return (CSerialSendThread::RESULT_ENUM)eThreadRet;
+		return (CTcpSendThread::RESULT_ENUM)eThreadRet;
 	}
 
 	return RESULT_SUCCESS;
@@ -97,9 +98,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド停止
+// TCP通信送信スレッド停止
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
+CTcpSendThread::RESULT_ENUM CTcpSendThread::Stop()
 {
 	bool						bRet = false;
 
@@ -107,9 +108,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::Stop - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		printf("CTcpSendThread::Stop - Not Init Proc.\n");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -120,10 +121,10 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
 		return RESULT_SUCCESS;
 	}
 
-	// シリアル通信送信スレッド停止
+	// TCP通信送信スレッド停止
 	CThread::Stop();
 
-	// シリアル送信要求リストをクリアする
+	// TCP送信要求リストをクリアする
 	SendRequestList_Clear();
 
 	return RESULT_SUCCESS;
@@ -131,9 +132,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド
+// TCP通信送信スレッド
 //-----------------------------------------------------------------------------
-void CSerialSendThread::ThreadProc()
+void CTcpSendThread::ThreadProc()
 {
 	int							iRet = 0;
 	struct epoll_event			tEvent;
@@ -149,9 +150,9 @@ void CSerialSendThread::ThreadProc()
 	if (m_epfd == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		perror("CSerialSendThread::ThreadProc - epoll_create");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		perror("CTcpSendThread::ThreadProc - epoll_create");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return;
 	}
 
@@ -163,13 +164,13 @@ void CSerialSendThread::ThreadProc()
 	if (iRet == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		perror("CSerialSendThread::ThreadProc - epoll_ctl[ThreadEndReqEvent]");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		perror("CTcpSendThread::ThreadProc - epoll_ctl[ThreadEndReqEvent]");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return;
 	}
 
-	// シリアル送信要求イベントを登録
+	// TCP送信要求イベントを登録
 	memset(&tEvent, 0x00, sizeof(tEvent));
 	tEvent.events = EPOLLIN;
 	tEvent.data.fd = this->m_cSendRequestEvent.GetEventFd();
@@ -177,9 +178,9 @@ void CSerialSendThread::ThreadProc()
 	if (iRet == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		perror("CSerialSendThread::ThreadProc - epoll_ctl[SendRequestEvent]");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		perror("CTcpSendThread::ThreadProc - epoll_ctl[SendRequestEvent]");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return;
 	}
 
@@ -196,9 +197,9 @@ void CSerialSendThread::ThreadProc()
 		if (nfds == -1)
 		{
 			m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-			perror("CSerialSendThread::ThreadProc - epoll_wait");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+			perror("CTcpSendThread::ThreadProc - epoll_wait");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 			continue;
 		}
 		else if (nfds == 0)
@@ -214,10 +215,10 @@ void CSerialSendThread::ThreadProc()
 				bLoop = false;
 				break;
 			}
-			// シリアル送信要求イベント受信
+			// TCP送信要求イベント受信
 			else if (tEvents[i].data.fd == this->m_cSendRequestEvent.GetEventFd())
 			{
-				// ★シリアル送信処理
+				// TCP送信処理
 			}
 		}
 	}
@@ -230,31 +231,31 @@ void CSerialSendThread::ThreadProc()
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド終了時に呼ばれる処理
+// TCP通信送信スレッド終了時に呼ばれる処理
 //-----------------------------------------------------------------------------
-void CSerialSendThread::ThreadProcCleanup(void* pArg)
+void CTcpSendThread::ThreadProcCleanup(void* pArg)
 {
 	// パラメータチェック
 	if (pArg == NULL)
 	{
 		return;
 	}
-	CSerialSendThread* pcSerialSendThread = (CSerialSendThread*)pArg;
+	CTcpSendThread* pcTcpSendThread = (CTcpSendThread*)pArg;
 
 
 	// epollファイルディスクリプタ解放
-	if (pcSerialSendThread->m_epfd != -1)
+	if (pcTcpSendThread->m_epfd != -1)
 	{
-		close(pcSerialSendThread->m_epfd);
-		pcSerialSendThread->m_epfd = -1;
+		close(pcTcpSendThread->m_epfd);
+		pcTcpSendThread->m_epfd = -1;
 	}
 }
 
 
 //-----------------------------------------------------------------------------
-// シリアル送信要求リストをクリアする
+// TCP送信要求リストをクリアする
 //-----------------------------------------------------------------------------
-void CSerialSendThread::SendRequestList_Clear()
+void CTcpSendThread::SendRequestList_Clear()
 {
 	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
 	m_cSendRequestListMutex.Lock();
@@ -282,9 +283,9 @@ void CSerialSendThread::SendRequestList_Clear()
 
 
 //-----------------------------------------------------------------------------
-// シリアル送信要求データ設定
+// TCP送信要求データ設定
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUEST_TABLE& tSendReauest)
+CTcpSendThread::RESULT_ENUM CTcpSendThread::SetSendRequestData(SEND_REQUEST_TABLE& tSendReauest)
 {
 	bool					bRet = false;
 
@@ -298,9 +299,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUES
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::SetSendRequestData - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		printf("CTcpSendThread::SetSendRequestData - Not Init Proc.\n");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -314,13 +315,13 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUES
 	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
 	m_cSendRequestListMutex.Lock();
 
-	// シリアル送信要求リストに登録
+	// TCP送信要求リストに登録
 	m_SendRequestList.push_back(tSendReauest);
 
 	m_cSendRequestListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
-	// シリアル通信送信スレッドにシリアル送信要求イベントを送信する
+	// TCP通信送信スレッドにシリアル送信要求イベントを送信する
 	m_cSendRequestEvent.SetEvent();
 
 	return RESULT_SUCCESS;
@@ -328,9 +329,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUES
 
 
 //-----------------------------------------------------------------------------
-// シリアル送信要求データ取得
+// TCP送信要求データ取得
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUEST_TABLE& tSendReauest)
+CTcpSendThread::RESULT_ENUM CTcpSendThread::GetSendRequestData(SEND_REQUEST_TABLE& tSendReauest)
 {
 	bool					bRet = false;
 
@@ -338,9 +339,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUES
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::GetSendRequestData - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CTCP_SEND_THREAD_DEBUG_
+		printf("CTcpSendThread::GetSendRequestData - Not Init Proc.\n");
+#endif	// #ifdef _CTCP_SEND_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -354,10 +355,10 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUES
 	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
 	m_cSendRequestListMutex.Lock();
 
-	// シリアル送信要求リストに登録データある場合
+	// TCP送信要求リストに登録データある場合
 	if (m_SendRequestList.empty() != true)
 	{
-		// シリアル受信応答リストの先頭データを取り出す（※リストの先頭データは削除）
+		// TCP受信応答リストの先頭データを取り出す（※リストの先頭データは削除）
 		std::list<SEND_REQUEST_TABLE>::iterator		it = m_SendRequestList.begin();
 		tSendReauest = *it;
 		m_SendRequestList.pop_front();
@@ -366,7 +367,7 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUES
 	m_cSendRequestListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
-	// シリアル通信送信スレッドにシリアル送信要求イベントを送信する
+	// TCP通信送信スレッドにシリアル送信要求イベントを送信する
 	m_cSendRequestEvent.SetEvent();
 
 	return RESULT_SUCCESS;

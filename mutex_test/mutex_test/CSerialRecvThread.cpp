@@ -197,7 +197,7 @@ void CSerialRecvThread::ThreadProc()
 		{
 			m_ErrorNo = errno;
 #ifdef _CSERIAL_RECV_THREAD_DEBUG_
-			perror("CSerialRecvThread::ThreadProc::ThreadProc - epoll_wait");
+			perror("CSerialRecvThread::ThreadProc - epoll_wait");
 #endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 			continue;
 		}
