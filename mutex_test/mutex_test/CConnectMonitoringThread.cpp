@@ -19,7 +19,7 @@
 //-----------------------------------------------------------------------------
 CConnectMonitoringThread::CConnectMonitoringThread()
 {
-	CEvent::RESULT_ENUM				eRet = CEvent::RESULT_SUCCESS;
+	CEvent::RESULT_ENUM				eEventRet = CEvent::RESULT_SUCCESS;
 
 
 	m_bInitFlag = false;
@@ -27,11 +27,12 @@ CConnectMonitoringThread::CConnectMonitoringThread()
 	memset(&m_tServerInfo, 0x00, sizeof(m_tServerInfo));
 	m_tServerInfo.Socket = -1;
 	m_epfd = -1;
-	//m_ClientResponseThreadList.clear();
+	m_ClientResponseThreadList.clear();
 
-	// クライアント応答スレッド終了イベント
-	eRet = m_cClientResponseThread_EndEvent.Init();
-	if (eRet != CEvent::RESULT_SUCCESS)
+
+	// クライアント応答スレッド終了イベント初期化
+	eEventRet = m_cClientResponseThread_EndEvent.Init();
+	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
 		return;
 	}
@@ -231,7 +232,7 @@ void CConnectMonitoringThread::ThreadProc()
 		return;
 	}
 
-	// クライアント応答スレッド終了要求イベントを登録
+	// クライアント応答スレッド終了イベントを登録
 	memset(&tEvent, 0x00, sizeof(tEvent));
 	tEvent.events = EPOLLIN;
 	tEvent.data.fd = this->m_cClientResponseThread_EndEvent.GetEventFd();
@@ -240,7 +241,7 @@ void CConnectMonitoringThread::ThreadProc()
 	{
 		m_ErrorNo = errno;
 #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
-		perror("CConnectMonitoringThread::ThreadProc - epoll_ctl[Server Socket]");
+		perror("CConnectMonitoringThread::ThreadProc - epoll_ctl[ClientResponseThread_EndEvent]");
 #endif	// #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
 		return;
 	}
@@ -286,18 +287,23 @@ void CConnectMonitoringThread::ThreadProc()
 			if (tEvents[i].data.fd == this->GetThreadEndReqEventFd())
 			{
 				bLoop = false;
-				continue;
+				break;
 			}
-
+			// クライアント応答スレッド終了イベント
+			else if (tEvents[i].data.fd == this->m_cClientResponseThread_EndEvent.GetEventFd())
+			{
+				// リストに登録されている、クライアント応答スレッドからスレッド終了フラグが立っているスレッドを全て終了させる
+				ClientResponseThreadList_CheckEndThread();
+				this->m_cClientResponseThread_EndEvent.ClearEvent();
+			}
 			// 接続要求
-			if (tEvents[i].data.fd == this->m_tServerInfo.Socket)
+			else if (tEvents[i].data.fd == this->m_tServerInfo.Socket)
 			{
 				CClientResponseThread::CLIENT_INFO_TABLE		tClientInfo;
 				socklen_t len = sizeof(tClientInfo.tAddr);
 				tClientInfo.Socket = accept(this->m_tServerInfo.Socket, (struct sockaddr*) & tClientInfo.tAddr, &len);
 				printf("accepted connection from %s, port=%d\n", inet_ntoa(tClientInfo.tAddr.sin_addr), ntohs(tClientInfo.tAddr.sin_port));
 
-#if 1
 				CClientResponseThread* pcClientResponseThread = (CClientResponseThread*)new CClientResponseThread(tClientInfo, &m_cClientResponseThread_EndEvent);
 				if (pcClientResponseThread == NULL)
 				{
@@ -314,18 +320,9 @@ void CConnectMonitoringThread::ThreadProc()
 #endif	// #ifdef _CONNECT_MONITORING_THREAD_DEBUG_
 					continue;
 				}
-
 				// リストに登録
 				m_ClientResponseThreadList.push_back(pcClientResponseThread);
-#endif
 				continue;
-			}
-
-			// クライアント応答スレッド終了要求イベント
-			if (tEvents[i].data.fd == this->m_cClientResponseThread_EndEvent.GetEventFd())
-			{
-				// リストに登録されている、クライアント応答スレッドからスレッド終了フラグが立っているスレッドを全て終了させる
-				ClientResponseThreadList_CheckEndThread();
 			}
 		}
 	}
@@ -385,7 +382,7 @@ void CConnectMonitoringThread::ClientResponseThreadList_CheckEndThread()
 		CClientResponseThread* p = *it;
 
 		// スレッド終了要求フラグが立っている？
-		if (p->IsThreadEndRequest() == true)
+		if (p->IsClientResponseThreadEnd() == true)
 		{
 			delete p;
 			it = m_ClientResponseThreadList.erase(it);

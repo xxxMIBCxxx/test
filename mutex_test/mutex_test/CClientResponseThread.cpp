@@ -25,13 +25,13 @@ CClientResponseThread::CClientResponseThread(CLIENT_INFO_TABLE& tClientInfo, CEv
 	m_Port = 0;
 	m_epfd = -1;
 	memset(m_szRecvBuf, 0x00, sizeof(m_szRecvBuf));
-	m_bThreadEndFlag = false;
+	m_bClientResponseThread_EndFlag = false;
 	m_pcClientResponseThread_EndEvent = NULL;
 	m_pcTcpSendThread = NULL;
 	m_pcTcpRecvThread = NULL;
 
 
-	// クライアント応答スレッド終了イベント
+	// クライアント終了イベントのチェック
 	if (pcClientResponseThread_EndEvent == NULL)
 	{
 		return;
@@ -225,6 +225,20 @@ void CClientResponseThread::ThreadProc()
 		return;
 	}
 
+	// クライアント切断イベントを登録
+	memset(&tEvent, 0x00, sizeof(tEvent));
+	tEvent.events = EPOLLIN;
+	tEvent.data.fd = this->m_pcTcpRecvThread->m_cClientDisconnectEvent.GetEventFd();
+	iRet = epoll_ctl(m_epfd, EPOLL_CTL_ADD, this->m_pcTcpRecvThread->m_cClientDisconnectEvent.GetEventFd(), &tEvent);
+	if (iRet == -1)
+	{
+		m_ErrorNo = errno;
+#ifdef _CCLIENT_RESPONSE_THREAD_DEBUG_
+		perror("CClientResponseThread - epoll_ctl[ClientDisconnectEvent]");
+#endif	// #ifdef _CCLIENT_RESPONSE_THREAD_DEBUG_
+		return;
+	}
+
 //	// TCP送信要求イベントを登録
 //	memset(&tEvent, 0x00, sizeof(tEvent));
 //	tEvent.events = EPOLLIN;
@@ -285,6 +299,16 @@ void CClientResponseThread::ThreadProc()
 				bLoop = false;
 				break;
 			}
+			// クライアント切断イベント
+			else if (tEvents[i].data.fd == this->m_pcTcpRecvThread->m_cClientDisconnectEvent.GetEventFd())
+			{
+				this->m_pcTcpRecvThread->m_cClientDisconnectEvent.ClearEvent();
+
+				// スレッド終了フラグを立てて、ConnectMonitoringThreadにスレッド終了要求を送信して、本スレッドを終了させる
+				m_bClientResponseThread_EndFlag = true;
+				m_pcClientResponseThread_EndEvent->SetEvent();
+				break;
+			}
 			//// TCP送信要求イベント
 			//else if (tEvents[i].data.fd == this->m_pcTcpSendThread->m_cSendRequestEvent.GetEventFd())
 			//{
@@ -328,9 +352,9 @@ void CClientResponseThread::ThreadProcCleanup(void* pArg)
 //-----------------------------------------------------------------------------
 // クライアント応答スレッド終了要求なのか調べる
 //-----------------------------------------------------------------------------
-bool CClientResponseThread::IsThreadEndRequest()
+bool CClientResponseThread::IsClientResponseThreadEnd()
 {
-	return m_bThreadEndFlag;
+	return m_bClientResponseThread_EndFlag;
 }
 
 

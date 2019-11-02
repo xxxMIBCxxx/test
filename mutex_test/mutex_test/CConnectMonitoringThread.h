@@ -56,8 +56,8 @@ private:
 
 	int										m_epfd;								// epollファイルディスクリプタ（クライアント接続監視スレッドで使用）
 
-	CEvent									m_cClientResponseThread_EndEvent;	// クライアント応答スレッド終了処理イベント
-	std::list< CClientResponseThread*>		m_ClientResponseThreadList;
+	CEvent									m_cClientResponseThread_EndEvent;	// クライアント応答スレッド終了イベント
+	std::list< CClientResponseThread*>		m_ClientResponseThreadList;			// ClientResponseThreadのリスト
 
 public:
 	CConnectMonitoringThread();

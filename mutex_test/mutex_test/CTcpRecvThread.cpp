@@ -27,10 +27,25 @@ CTcpRecvThread::CTcpRecvThread(CLIENT_INFO_TABLE& tClientInfo)
 	m_ErrorNo = 0;
 	m_epfd = -1;
 	m_tClientInfo = tClientInfo;
+	memset(m_szIpAddr, 0x00, sizeof(m_szIpAddr));
+	m_Port = 0;
 	m_eAnalyzeKind = ANALYZE_KIND_STX;
 	m_CommandPos = 0;
 	memset(m_szRecvBuff, 0x00, sizeof(m_szRecvBuff));
 	memset(m_szCommandBuff, 0x00, sizeof(m_szCommandBuff));
+
+
+	// クライアント情報を取得
+	memcpy(&m_tClientInfo, &tClientInfo, sizeof(CLIENT_INFO_TABLE));
+	sprintf(m_szIpAddr, "%s", inet_ntoa(m_tClientInfo.tAddr.sin_addr));			// IPアドレス取得
+	m_Port = ntohs(m_tClientInfo.tAddr.sin_port);								// ポート番号取得
+
+	// クライアント切断イベントの初期化
+	eEventRet = m_cClientDisconnectEvent.Init();
+	if (eEventRet != CEvent::RESULT_SUCCESS)
+	{
+		return;
+	}
 
 	// TCP受信応答イベントの初期化
 //	eEventRet = m_cRecvResponseEvent.Init(EFD_SEMAPHORE);
@@ -409,8 +424,12 @@ CTcpRecvThread::RESULT_ENUM CTcpRecvThread::TcpRecvProc()
 	}
 	else if (read_count == 0)
 	{
-		printf("read_count = 0\n");
+		// クライアント側が切断するとTCP受信ソケットの通知が何度も来るので、TCP受信ソケットを削除する
+		epoll_ctl(m_epfd, EPOLL_CTL_DEL, this->m_tClientInfo.Socket, NULL);
 
+		// クライアントが切断したので、ClientResponseThreadにクライアント切断イベントを送信して、本スレッドを終了させる
+		printf("[%s (%d)] - Client Disconnect!\n", m_szIpAddr, m_Port);
+		m_cClientDisconnectEvent.SetEvent();
 	}
 	else
 	{

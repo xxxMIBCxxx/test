@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "CThread.h"
+#include "CEvent.h"
 #include "CTcpSendThread.h"
 #include "CTcpRecvThread.h"
 
@@ -52,16 +53,15 @@ public:
 	CTcpSendThread*							m_pcTcpSendThread;					// TCP送信スレッド
 	CTcpRecvThread*							m_pcTcpRecvThread;					// TCP受信スレッド
 
-	bool									m_bThreadEndFlag;					// スレッド終了フラグ
-	CEvent									*m_pcClientResponseThread_EndEvent;	// クライアント応答スレッド終了処理イベント
-
+	bool									m_bClientResponseThread_EndFlag;	// クライアント応答スレッド終了フラグ
+	CEvent*									m_pcClientResponseThread_EndEvent;	// クライアント応答スレッド終了イベント
 
 public:
 	CClientResponseThread(CLIENT_INFO_TABLE& tClientInfo, CEvent* pcClientResponseThread_EndEvent);
 	~CClientResponseThread();
 	RESULT_ENUM Start();
 	RESULT_ENUM Stop();
-	bool IsThreadEndRequest();
+	bool IsClientResponseThreadEnd();
 
 public:
 	void ThreadProc();
