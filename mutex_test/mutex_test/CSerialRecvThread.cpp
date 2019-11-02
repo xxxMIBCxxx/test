@@ -1,21 +1,21 @@
 //*****************************************************************************
-// シリアル通信送信スレッド
+// シリアル通信受信スレッドクラス
 //*****************************************************************************
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
-#include "CSerialSendThread.h"
+#include "CSerialRecvThread.h"
 
 
-#define _CSERIAL_SEND_THREAD_DEBUG_
+#define _CSERIAL_RECV_THREAD_DEBUG_
 #define EPOLL_MAX_EVENTS							( 10 )						// epoll最大イベント
 
 
 //-----------------------------------------------------------------------------
 // コンストラクタ
 //-----------------------------------------------------------------------------
-CSerialSendThread::CSerialSendThread()
+CSerialRecvThread::CSerialRecvThread()
 {
 	bool						bRet = false;
 	CEvent::RESULT_ENUM			eEventRet = CEvent::RESULT_SUCCESS;
@@ -26,15 +26,15 @@ CSerialSendThread::CSerialSendThread()
 	m_epfd = -1;
 
 
-	// シリアル送信要求イベントの初期化
-	eEventRet = m_cSendRequestEvent.Init();
+	// シリアル受信応答イベントの初期化
+	eEventRet = m_cRecvResponseEvent.Init();
 	if (eEventRet != CEvent::RESULT_SUCCESS)
 	{
 		return;
 	}
 
-	// シリアル送信要求リストのクリア
-	m_SendRequestList.clear();
+	// シリアル受信応答リストのクリア
+	m_RecvResponseList.clear();
 
 
 	// 初期化完了
@@ -45,20 +45,20 @@ CSerialSendThread::CSerialSendThread()
 //-----------------------------------------------------------------------------
 // デストラクタ
 //-----------------------------------------------------------------------------
-CSerialSendThread::~CSerialSendThread()
+CSerialRecvThread::~CSerialRecvThread()
 {
-	// シリアル通信送信スレッド停止し忘れ考慮
+	// シリアル通信受信スレッド停止し忘れ考慮
 	this->Stop();
 
-	// 再度シリアル送信要求リストをクリアする
-	SendRequestList_Clear();
+	// 再度、シリアル受信応答リストをクリアする
+	RecvResponseList_Clear();
 }
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド開始
+// シリアル通信受信スレッド開始
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
+CSerialRecvThread::RESULT_ENUM CSerialRecvThread::Start()
 {
 	bool						bRet = false;
 	RESULT_ENUM					eRet = RESULT_SUCCESS;
@@ -68,9 +68,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::Start - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		printf("CSerialRecvThread::Start - Not Init Proc.\n");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -78,18 +78,18 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
 	bRet = this->IsActive();
 	if (bRet == true)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::Start - Thread Active.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		printf("CSerialRecvThread::Start - Thread Active.\n");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return RESULT_ERROR_ALREADY_STARTED;
 	}
 
-	// クライアント接続監視スレッド開始
+	// シリアル通信受信スレッド開始
 	eThreadRet = CThread::Start();
 	if (eThreadRet != CThread::RESULT_SUCCESS)
 	{
 		m_ErrorNo = CThread::GetErrorNo();
-		return (CSerialSendThread::RESULT_ENUM)eThreadRet;
+		return (CSerialRecvThread::RESULT_ENUM)eThreadRet;
 	}
 
 	return RESULT_SUCCESS;
@@ -97,9 +97,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Start()
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド停止
+// シリアル通信受信スレッド停止
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
+CSerialRecvThread::RESULT_ENUM CSerialRecvThread::Stop()
 {
 	bool						bRet = false;
 
@@ -107,9 +107,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::Stop - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		printf("CSerialRecvThread::Stop - Not Init Proc.\n");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -120,20 +120,20 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::Stop()
 		return RESULT_SUCCESS;
 	}
 
-	// クライアント接続監視スレッド停止
+	// シリアル通信受信スレッド停止
 	CThread::Stop();
 
-	// シリアル送信要求リストをクリアする
-	SendRequestList_Clear();
+	// シリアル受信応答リストをクリアする
+	RecvResponseList_Clear();
 
 	return RESULT_SUCCESS;
 }
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド
+// シリアル通信受信スレッド
 //-----------------------------------------------------------------------------
-void CSerialSendThread::ThreadProc()
+void CSerialRecvThread::ThreadProc()
 {
 	int							iRet = 0;
 	struct epoll_event			tEvent;
@@ -149,9 +149,9 @@ void CSerialSendThread::ThreadProc()
 	if (m_epfd == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		perror("CSerialSendThread::ThreadProc - epoll_create");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		perror("CSerialRecvThread::ThreadProc - epoll_create");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return;
 	}
 
@@ -163,23 +163,23 @@ void CSerialSendThread::ThreadProc()
 	if (iRet == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		perror("CSerialSendThread::ThreadProc - epoll_ctl[ThreadEndReqEvent]");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		perror("CSerialRecvThread::ThreadProc - epoll_ctl[ThreadEndReqEvent]");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return;
 	}
 
-	// シリアル送信要求イベントを登録
+	// シリアル受信応答イベントを登録
 	memset(&tEvent, 0x00, sizeof(tEvent));
 	tEvent.events = EPOLLIN;
-	tEvent.data.fd = this->m_cSendRequestEvent.GetEventFd();
-	iRet = epoll_ctl(m_epfd, EPOLL_CTL_ADD, this->m_cSendRequestEvent.GetEventFd(), &tEvent);
+	tEvent.data.fd = this->m_cRecvResponseEvent.GetEventFd();
+	iRet = epoll_ctl(m_epfd, EPOLL_CTL_ADD, this->m_cRecvResponseEvent.GetEventFd(), &tEvent);
 	if (iRet == -1)
 	{
 		m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		perror("CSerialSendThread::ThreadProc - epoll_ctl[SendRequestEvent]");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		perror("CSerialRecvThread::ThreadProc - epoll_ctl[RecvResponseEvent]");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return;
 	}
 
@@ -196,9 +196,9 @@ void CSerialSendThread::ThreadProc()
 		if (nfds == -1)
 		{
 			m_ErrorNo = errno;
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-			perror("CSerialSendThread::ThreadProc::ThreadProc - epoll_wait");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+			perror("CSerialRecvThread::ThreadProc::ThreadProc - epoll_wait");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 			continue;
 		}
 		else if (nfds == 0)
@@ -214,10 +214,10 @@ void CSerialSendThread::ThreadProc()
 				bLoop = false;
 				break;
 			}
-			// シリアル送信要求イベント受信
-			else if (tEvents[i].data.fd == this->m_cSendRequestEvent.GetEventFd())
+			// シリアル受信応答イベント受信
+			else if (tEvents[i].data.fd == this->m_cRecvResponseEvent.GetEventFd())
 			{
-				// ★シリアル送信処理
+				// ★シリアル受信処理
 			}
 		}
 	}
@@ -230,67 +230,111 @@ void CSerialSendThread::ThreadProc()
 
 
 //-----------------------------------------------------------------------------
-// シリアル通信送信スレッド終了時に呼ばれる処理
+// シリアル通信受信スレッド終了時に呼ばれる処理
 //-----------------------------------------------------------------------------
-void CSerialSendThread::ThreadProcCleanup(void* pArg)
+void CSerialRecvThread::ThreadProcCleanup(void* pArg)
 {
 	// パラメータチェック
 	if (pArg == NULL)
 	{
 		return;
 	}
-	CSerialSendThread* pcSerialSendThread = (CSerialSendThread*)pArg;
+	CSerialRecvThread* pcSerialRecvThread = (CSerialRecvThread*)pArg;
 
 
 	// epollファイルディスクリプタ解放
-	if (pcSerialSendThread->m_epfd != -1)
+	if (pcSerialRecvThread->m_epfd != -1)
 	{
-		close(pcSerialSendThread->m_epfd);
-		pcSerialSendThread->m_epfd = -1;
+		close(pcSerialRecvThread->m_epfd);
+		pcSerialRecvThread->m_epfd = -1;
 	}
 }
 
 
+
 //-----------------------------------------------------------------------------
-// シリアル送信要求リストをクリアする
+// シリアル受信応答リストをクリアする
 //-----------------------------------------------------------------------------
-void CSerialSendThread::SendRequestList_Clear()
+void CSerialRecvThread::RecvResponseList_Clear()
 {
 	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
-	m_cSendRequestListMutex.Lock();
+	m_cRecvResponseListMutex.Lock();
 
-	std::list<SEND_REQUEST_TABLE>::iterator		it = m_SendRequestList.begin();
-	while (it != m_SendRequestList.end())
+	std::list<RECV_RESPONCE_TABLE>::iterator		it = m_RecvResponseList.begin();
+	while (it != m_RecvResponseList.end())
 	{
-		SEND_REQUEST_TABLE			tSendRequest = *it;
+		RECV_RESPONCE_TABLE			tRecvResponse = *it;
 
 		// バッファが確保されている場合
-		if (tSendRequest.pSendData != NULL)
+		if (tRecvResponse.pRecvdData != NULL)
 		{
 			// バッファ領域を解放
-			free(tSendRequest.pSendData);
+			free(tRecvResponse.pRecvdData);
 		}
 		it++;
 	}
 
-	// シリアル送信要求リストをクリア
-	m_SendRequestList.clear();
+	// シリアル受信応答リストをクリア
+	m_RecvResponseList.clear();
 
-	m_cSendRequestListMutex.Unlock();
+	m_cRecvResponseListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 }
 
 
 //-----------------------------------------------------------------------------
-// シリアル送信要求データ設定
+// シリアル受信データ取得
 //-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUEST_TABLE& tSendReauest)
+CSerialRecvThread::RESULT_ENUM CSerialRecvThread::GetRecvResponseData(RECV_RESPONCE_TABLE& tRecvResponce)
+{
+	bool					bRet = false;
+
+
+	// 初期化処理が完了していない場合
+	if (m_bInitFlag == false)
+	{
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		printf("CSerialRecvThread::GetRecvResponseData - Not Init Proc.\n");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		return RESULT_ERROR_INIT;
+	}
+
+	// 既にスレッドが停止している場合
+	bRet = this->IsActive();
+	if (bRet == false)
+	{
+		return RESULT_ERROR_NOT_ACTIVE;
+	}
+
+	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
+	m_cRecvResponseListMutex.Lock();
+
+	// シリアル受信応答リストに登録データある場合
+	if (m_RecvResponseList.empty() != true)
+	{
+		// シリアル受信応答リストの先頭データを取り出す（※リストの先頭データは削除）
+		std::list<RECV_RESPONCE_TABLE>::iterator		it = m_RecvResponseList.begin();
+		tRecvResponce = *it;
+		m_RecvResponseList.pop_front();
+	}
+
+	m_cRecvResponseListMutex.Unlock();
+	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
+
+	return RESULT_SUCCESS;
+}
+
+
+//-----------------------------------------------------------------------------
+// シリアル受信データ設定
+//-----------------------------------------------------------------------------
+CSerialRecvThread::RESULT_ENUM CSerialRecvThread::SetRecvResponseData(RECV_RESPONCE_TABLE& tRecvResponce)
 {
 	bool					bRet = false;
 
 
 	// 引数チェック
-	if (tSendReauest.pSendData == NULL)
+	if (tRecvResponce.pRecvdData == NULL)
 	{
 		return RESULT_ERROR_PARAM;
 	}
@@ -298,9 +342,9 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUES
 	// 初期化処理が完了していない場合
 	if (m_bInitFlag == false)
 	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::SetSendRequestData - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
+#ifdef _CSERIAL_RECV_THREAD_DEBUG_
+		printf("CSerialRecvThread::SetRecvResponseData - Not Init Proc.\n");
+#endif	// #ifdef _CSERIAL_RECV_THREAD_DEBUG_
 		return RESULT_ERROR_INIT;
 	}
 
@@ -312,62 +356,16 @@ CSerialSendThread::RESULT_ENUM CSerialSendThread::SetSendRequestData(SEND_REQUES
 	}
 
 	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
-	m_cSendRequestListMutex.Lock();
+	m_cRecvResponseListMutex.Lock();
 
-	// シリアル送信要求リストに登録
-	m_SendRequestList.push_back(tSendReauest);
+	// シリアル受信応答リストに登録
+	m_RecvResponseList.push_back(tRecvResponce);
 
-	m_cSendRequestListMutex.Unlock();
+	m_cRecvResponseListMutex.Unlock();
 	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
-	// シリアル通信送信スレッドにシリアル送信要求イベントを送信する
-	m_cSendRequestEvent.SetEvent();
-
-	return RESULT_SUCCESS;
-}
-
-
-//-----------------------------------------------------------------------------
-// シリアル送信要求データ取得
-//-----------------------------------------------------------------------------
-CSerialSendThread::RESULT_ENUM CSerialSendThread::GetSendRequestData(SEND_REQUEST_TABLE& tSendReauest)
-{
-	bool					bRet = false;
-
-
-	// 初期化処理が完了していない場合
-	if (m_bInitFlag == false)
-	{
-#ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		printf("CSerialSendThread::GetSendRequestData - Not Init Proc.\n");
-#endif	// #ifdef _CSERIAL_SEND_THREAD_DEBUG_
-		return RESULT_ERROR_INIT;
-	}
-
-	// 既にスレッドが停止している場合
-	bRet = this->IsActive();
-	if (bRet == false)
-	{
-		return RESULT_ERROR_NOT_ACTIVE;
-	}
-
-	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
-	m_cSendRequestListMutex.Lock();
-
-	// シリアル送信要求リストに登録データある場合
-	if (m_SendRequestList.empty() != true)
-	{
-		// シリアル受信応答リストの先頭データを取り出す（※リストの先頭データは削除）
-		std::list<SEND_REQUEST_TABLE>::iterator		it = m_SendRequestList.begin();
-		tSendReauest = *it;
-		m_SendRequestList.pop_front();
-	}
-
-	m_cSendRequestListMutex.Unlock();
-	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
-
-	// シリアル通信送信スレッドにシリアル送信要求イベントを送信する
-	m_cSendRequestEvent.SetEvent();
+	// シリアル受信応答イベントを送信する
+	m_cRecvResponseEvent.SetEvent();
 
 	return RESULT_SUCCESS;
 }
