@@ -79,6 +79,7 @@
     <ClCompile Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CConnectMonitoringThread.cpp" />
     <ClCompile Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CSerialRecvThread.cpp" />
     <ClCompile Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CSerialSendThread.cpp" />
+    <ClCompile Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CTcpRecvThread.cpp" />
     <ClCompile Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CTcpSendThread.cpp" />
     <ClCompile Include="CEvent.cpp" />
     <ClCompile Include="CMutex.cpp" />
@@ -90,6 +91,7 @@
     <ClInclude Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CConnectMonitoringThread.h" />
     <ClInclude Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CSerialRecvThread.h" />
     <ClInclude Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CSerialSendThread.h" />
+    <ClInclude Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CTcpRecvThread.h" />
     <ClInclude Include="..\..\..\..\%40Temp\test\mutex_test\mutex_test\CTcpSendThread.h" />
     <ClInclude Include="CEvent.h" />
     <ClInclude Include="CMutex.h" />
