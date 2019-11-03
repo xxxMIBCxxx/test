@@ -9,7 +9,7 @@
 
 
 #define _CEVENT_EX_DEBUG_
-
+#define MONITORING_COUNTER_NUM				( 20 )
 
 //-----------------------------------------------------------------------------
 // コンストラクタ
@@ -18,6 +18,7 @@ CEventEx::CEventEx()
 {
 	m_ErrorNo = 0;
 	m_efd = -1;
+	m_Counter = 0;
 }
 
 
@@ -74,7 +75,7 @@ int CEventEx::GetErrorNo()
 
 
 //-----------------------------------------------------------------------------
-// イベント設定（インクリメント）
+// イベント設定
 //-----------------------------------------------------------------------------
 CEventEx::RESULT_ENUM CEventEx::SetEvent()
 {
@@ -88,6 +89,9 @@ CEventEx::RESULT_ENUM CEventEx::SetEvent()
 		return RESULT_ERROR_EVENT_FD;
 	}
 
+	// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
+	m_cCounterMutex.Lock();
+
 	// イベント設定（インクリメント）
 	iRet = write(m_efd, &event, sizeof(event));
 	if (iRet != sizeof(event))
@@ -96,15 +100,31 @@ CEventEx::RESULT_ENUM CEventEx::SetEvent()
 #ifdef _CEVENT_EX_DEBUG_
 		perror("CEventEx::SetEvent - write");
 #endif	// #ifdef _CEVENT_EX_DEBUG_
+
+		m_cCounterMutex.Unlock();
 		return RESULT_ERROR_EVENT_SET;
 	}
+
+	// カウンター値をインクリメント
+	m_Counter++;
+
+	// この条件に入った場合は処理が溜まっているということなので、処理を検討してください
+	if (m_Counter == MONITORING_COUNTER_NUM)
+	{
+#ifdef _CEVENT_EX_DEBUG_
+		printf("CEventEx::SetEvent - <Warning> Processing has accumulated!\n");
+#endif	// #ifdef _CEVENT_EX_DEBUG_
+	}
+
+	m_cCounterMutex.Unlock();
+	// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 
 	return RESULT_SUCCESS;
 }
 
 
 //-----------------------------------------------------------------------------
-// イベントクリア（デクリメント）
+// イベントクリア
 //-----------------------------------------------------------------------------
 CEventEx::RESULT_ENUM CEventEx::ClearEvent()
 {
@@ -143,16 +163,33 @@ CEventEx::RESULT_ENUM CEventEx::ClearEvent()
 	}
 	else
 	{
-		// イベントクリア（デクリメント）
-		iRet = read(m_efd, &event, sizeof(event));
-		if (iRet < 0)
+		// ▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼▽▼
+		m_cCounterMutex.Lock();
+
+		// 一応馬鹿除け
+		if (m_Counter != 0)
 		{
-			m_ErrorNo = errno;
+			// カウンター値が0になったときに、イベントクリアを行う
+			m_Counter--;
+			if (m_Counter == 0)
+			{
+				// イベントクリア
+				iRet = read(m_efd, &event, sizeof(event));
+				if (iRet < 0)
+				{
+					m_ErrorNo = errno;
 #ifdef _CEVENT_EX_DEBUG_
-			perror("CEventEx::ClearEvent - read");
+					perror("CEventEx::ClearEvent - read");
 #endif	// #ifdef _CEVENT_EX_DEBUG_
-			return RESULT_ERROR_EVENT_CLEAR;
+
+					m_cCounterMutex.Unlock();
+					return RESULT_ERROR_EVENT_CLEAR;
+				}
+			}
 		}
+
+		m_cCounterMutex.Unlock();
+		// ▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲△▲
 	}
 
 	return RESULT_SUCCESS;

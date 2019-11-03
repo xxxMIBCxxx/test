@@ -3,6 +3,8 @@
 // EventExクラス
 //*****************************************************************************
 #include <cstdio>
+#include "CMutex.h"
+
 
 class CEventEx
 {
@@ -24,6 +26,9 @@ public:
 private:
 	int								m_efd;				// イベントファイルディスクリプタ
 	int								m_ErrorNo;			// エラー番号
+
+	unsigned int					m_Counter;			// カウンター
+	CMutex							m_cCounterMutex;	// カウンター用ミューテックス
 
 public:
 	CEventEx();
